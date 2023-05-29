@@ -1,9 +1,14 @@
 package com.example.e_commerce
 
+import SearchBar
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -15,29 +20,61 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.e_commerce.Repositery.ProductRepositery
 import com.example.e_commerce.Screen.*
+import com.example.e_commerce.Screen.Account.FavouriteScreen
+import com.example.e_commerce.Screen.Home.ProductDetailScreen
+import com.example.e_commerce.Screen.Order.SuccessScreen
+import com.example.e_commerce.Screen.Summary.SummaryScreen
+import com.example.e_commerce.Sealed.E_commerce
+import com.example.e_commerce.ViewModel.ProductViewmodel
 import com.example.e_commerce.ui.theme.EcommerceTheme
 
+
 class MainActivity : ComponentActivity() {
+
+    private val productViewmodel: ProductViewmodel by viewModels {
+        ProductViewmodel.Factory(
+            ProductRepositery()
+
+
+        )
+    }
+
+
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+
+
+
+
         setContent {
-            EcommerceTheme {
+
+            val istheme = remember{ mutableStateOf(false) }
+            EcommerceTheme(istheme.value) {
                 Surface(
                     modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background
                 ) {
 
-                    Navigation()
+                    Navigation(istheme)
+
+
                 }
             }
         }
     }
 
 
-
-
+    @RequiresApi(Build.VERSION_CODES.O)
     @Composable
-    fun NavigationController(navController: NavHostController) {
+    fun NavigationController(
+        navController: NavHostController,
+        padding: PaddingValues,
+        istheme: MutableState<Boolean>
+    ) {
+
 
         NavHost(
             navController = navController,
@@ -45,29 +82,158 @@ class MainActivity : ComponentActivity() {
         ) {
 
             composable(route = E_commerce.Home.route) {
-                Home()
+
+
+
+                Home(productViewmodel, oncart = {
+
+                    navController.navigate("cart")
+
+                }, onclick = {
+
+                    productViewmodel.addProduct(it)
+                    navController.navigate("productdetails")
+                }, isthem = istheme, onnext = {  navController.navigate("screen")})
+
             }
 
             composable(route = E_commerce.Order.route) {
-                Order()
+                OrderScreen(productViewmodel = productViewmodel)
             }
 
-            composable(route = E_commerce.Cart.route) {
-                Cart()
+            composable(route = "order1") {
+                OrderScreen(productViewmodel = productViewmodel)
+            }
+
+
+
+            composable("screen")
+            {
+                SearchBar(productViewmodel = productViewmodel, onnext = {
+
+                    productViewmodel.addProduct(it)
+                    navController.navigate("productdetails")
+                }, ondiscard = {
+
+                    navController.popBackStack()
+                })
+            }
+
+
+
+            composable(route = "cart") {
+                Cart(productViewmodel, {
+                    navController.popBackStack()
+                }, {
+
+                    productViewmodel.addProduct(it)
+                    navController.navigate("productdetails")
+
+                }, onsummary = {
+
+                    navController.navigate("summary")
+
+                })
             }
 
             composable(route = E_commerce.Account.route) {
-                Account(){
+                Account(
+                    profileImage = R.drawable.pictures,
+                    navController = navController
+                )
+            }
 
-                    navController.navigate("publish")
+            composable("summary")
+            {
+
+                SummaryScreen(productViewmodel = productViewmodel, onSucess = {
+
+
+                    navController.popBackStack()
+                    navController.popBackStack()
+                    navController.navigate("order")
+
+
+
+                }, onback = {
+
+                    navController.popBackStack()
+
+                })
+            }
+
+            composable(route = "productdetails") {
+
+                ProductDetailScreen(productViewmodel, onback = {
+                    navController.popBackStack()
+                }, onnext = {
+
+                    navController.navigate("cart")
+
+                }) {
+
+                    productViewmodel.addProduct(it)
+                    navController.navigate("productdetails")
 
                 }
             }
 
-            composable(route = "publish") {
-                PublishScreen()
+            composable("success")
+            {
+                SuccessScreen()
             }
 
+            composable("favourite") {
+
+                productViewmodel.readFavData()
+
+                FavouriteScreen(
+                    productViewmodel = productViewmodel,
+                    onnext = {
+                        productViewmodel.addProduct(it)
+                        navController.navigate("productdetails")
+                    }
+                )
+
+            }
+            composable("favourite1") {
+
+                productViewmodel.readFavData()
+
+                FavouriteScreen(
+                    productViewmodel = productViewmodel,
+                    onnext = {
+                        productViewmodel.addProduct(it)
+                        navController.navigate("productdetails")
+                    }
+                )
+
+            }
+
+            composable(route = "publish") {
+                PublishScreen(ondiscard = {
+
+                    navController.popBackStack()
+
+                }, onSubmit = {
+
+
+                    productViewmodel.submitdata(it, onFailure = {
+
+                        Toast.makeText(applicationContext, it, Toast.LENGTH_LONG).show()
+
+
+                    }, onSuccess = {
+
+                        Toast.makeText(applicationContext, "Sucessfully added!", Toast.LENGTH_LONG)
+                            .show()
+
+
+                    })
+                    navController.popBackStack()
+
+                })
+            }
 
 
         }
@@ -83,10 +249,10 @@ class MainActivity : ComponentActivity() {
         )
 
         BottomNavigation(
-            backgroundColor = Color.White,
+            backgroundColor = MaterialTheme.colors.primary,
             elevation = 8.dp,
-           )
-         {
+        )
+        {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route
 
@@ -125,35 +291,40 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    @RequiresApi(Build.VERSION_CODES.O)
     @Composable
-    fun Navigation() {
+    fun Navigation(istheme: MutableState<Boolean>) {
 
         val navController = rememberNavController()
 
 
         Scaffold(bottomBar = {
 
-            if( navController.currentBackStackEntryAsState().value?.destination?.route != "publish" )
-            {
+            if (navController.currentBackStackEntryAsState().value?.destination?.route == "publish" ||
+                navController.currentBackStackEntryAsState().value?.destination?.route == "screen" ||
+                navController.currentBackStackEntryAsState().value?.destination?.route == "order1" ||
+                navController.currentBackStackEntryAsState().value?.destination?.route == "productdetails"
+                || navController.currentBackStackEntryAsState().value?.destination?.route == "favourite1"
+                || navController.currentBackStackEntryAsState().value?.destination?.route == "cart"
+                || navController.currentBackStackEntryAsState().value?.destination?.route == "summary"
+                || navController.currentBackStackEntryAsState().value?.destination?.route == "success") {
+
+                Unit
+            } else {
                 BottomNavigationBar(navController = navController)
             }
-            else
-            {
-                Unit
-            }
 
 
-
-        }) { paddingvalue->
-
-
-            NavigationController(navController = navController)
+        }) { padding ->
 
 
+            NavigationController(navController = navController, padding = padding,istheme)
 
 
         }
     }
+
+
 }
 
 
